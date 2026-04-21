@@ -32,4 +32,46 @@ router.get('/:owner/:repo', async(req, res) =>{
     }
 })
 
+router.get('/:owner/:repo/commits', async(req, res) =>{
+    const{owner, repo} = req.params
+
+    try{
+        const{data} = await githubAPI.get(`/repos/${owner}/${repo}/commits`, {
+            params:{per_page:100}
+        })
+
+        const commits = data.map(commit => ({
+            message:commit.commit.message,
+            author:commit.commit.author.name,
+            date:commit.commit.author.date,
+        }))
+
+        res.json({total:commits.length, commits})
+    }catch(err){
+        res.status(500).json({error:'Failedd to fetch commits'})
+    }
+})
+
+router.get('/:owner/:repo/issues', async(req, res) => {
+    const{owner, repo} = req.params
+
+    try{
+        const{data} = await githubAPI.get(`/repos/${owner}/${repo}/issues`, {
+            params: {per_page:100, state:'all'}
+        })
+
+        const issues = data.map(issue =>({
+            title: issue.title,
+            state: issue.state,
+            createdAt: issue.created_at,
+            closedAt: issue.closed_at,
+            author: issue.user.login,
+        }))
+
+        res.json({total: issues.length, issues })
+    }   catch(err){
+        res.status(500).json({error:'Failed to fetch issues'})
+    }
+})
+
 module.exports = router
