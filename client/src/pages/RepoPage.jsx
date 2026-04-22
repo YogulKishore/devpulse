@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
-import { getRepo, getCommits, getIssues, getHealth, getContributors } from '../services/api'
+import { getRepo, getCommits, getIssues, getHealth, getContributors, API } from '../services/api'
 
 function RepoPage() {
   const { owner, repo } = useParams()
@@ -12,6 +12,8 @@ function RepoPage() {
   const [health, setHealth] = useState(null)
   const [contributors, setContributors] = useState([])
   const navigate = useNavigate()
+  const [summary, setSummary] = useState('')
+  const [summaryLoading, setSummaryLoading] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -59,6 +61,28 @@ function RepoPage() {
         {name:'closed', value:closed},
     ]
   }
+  
+  async function generateSummary() {
+  setSummaryLoading(true)
+  try {
+    const response = await API.post(`/api/repo/${owner}/${repo}/summarise`, {
+      name: repoData.name,
+      stars: repoData.stars,
+      forks: repoData.forks,
+      openIssues: repoData.openIssues,
+      language: repoData.language,
+      score: health.score,
+      daysSinceCommit: health.daysSinceCommit,
+      resolutionRate: health.resolutionRate,
+      verdict: health.verdict
+    })
+    setSummary(response.data.summary)
+  } catch (err) {
+    console.error(err)
+  } finally {
+    setSummaryLoading(false)
+  }
+}
 
   const commitChartData = processCommits(commits)
   const issueChartData = processIssues(issues)
@@ -149,8 +173,21 @@ function RepoPage() {
             ))}
           </div>
         </div>
-      </div>
 
+        <div className='bg-gray-900 rounded-xl p-6 mt-8'>
+            <h2 className='text-xl font-semibold mb-4'>AI Summary</h2>
+            <button
+                onClick={generateSummary}
+                disabled={summaryLoading}
+                className='px-6 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-medium transition-colors disabled:opacity-50'
+            >
+                {summaryLoading ? 'Generating...' : 'Generate AI Summary'}
+            </button>
+            {summary && (
+                <p className='mt-4 text-gray-300 leading-relaxed'>{summary}</p>
+            )}
+            </div>
+      </div>
     </div>
   </div>
 )

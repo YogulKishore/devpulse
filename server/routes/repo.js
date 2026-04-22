@@ -147,4 +147,14 @@ router.get('/:owner/:repo/health', async (req, res) => {
   }
 })
 
+router.post('/:owner/:repo/summarise', async (req, res) => {
+    try {
+        console.log('Received body:', req.body)
+        const response = await axios.post('http://localhost:8000/summarise', req.body)
+        res.json(response.data)
+    } catch (err) {
+        res.status(500).json({error: 'AI service unavailable'})
+    }
+})
+
 module.exports = router
