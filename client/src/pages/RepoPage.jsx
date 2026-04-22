@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { getRepo, getCommits, getIssues } from '../services/api'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
+import { getRepo, getCommits, getIssues, getHealth, getContributors } from '../services/api'
 
 function RepoPage() {
   const { owner, repo } = useParams()
@@ -9,18 +9,24 @@ function RepoPage() {
   const [commits, setCommits] = useState([])
   const [issues, setIssues] = useState([])
   const [loading, setLoading] = useState(true)
+  const [health, setHealth] = useState(null)
+  const [contributors, setContributors] = useState([])
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [repoRes, commitsRes, issuesRes] = await Promise.all([
-          getRepo(owner, repo),
-          getCommits(owner, repo),
-          getIssues(owner, repo)
-        ])
-        setRepoData(repoRes.data)
-        setCommits(commitsRes.data.commits)
-        setIssues(issuesRes.data.issues)
+        const [repoRes, commitsRes, issuesRes, healthRes, contributorsRes] = await Promise.all([
+            getRepo(owner, repo),
+            getCommits(owner, repo),
+            getIssues(owner, repo),
+            getHealth(owner, repo),
+            getContributors(owner, repo)
+            ])
+            setRepoData(repoRes.data)
+            setCommits(commitsRes.data.commits)
+            setIssues(issuesRes.data.issues)
+            setHealth(healthRes.data)
+            setContributors(contributorsRes.data.contributors)
       } catch (err) {
         console.error(err)
       } finally {
@@ -55,6 +61,7 @@ function RepoPage() {
 
   const commitChartData = processCommits(commits)
   const issueChartData = processIssues(issues)
+
   return (
     <div>
       <h1>{repoData.name}</h1>
@@ -82,7 +89,19 @@ function RepoPage() {
     <Tooltip />
     <Legend />
   </PieChart>
-</ResponsiveContainer>
+  </ResponsiveContainer>
+  <h2>Health Score: {health?.score}/100 — {health?.verdict}</h2>
+<p>Days since last commit: {health?.daysSinceCommit}</p>
+<p>Issue resolution rate: {health?.resolutionRate}%</p>
+
+<h2>Top Contributors</h2>
+{contributors.map(c => (
+  <div key={c.username}>
+    <img src={c.avatar} alt={c.username} width={30} />
+    <a href={c.profile}>{c.username}</a>
+    <span> — {c.contributions} commits</span>
+  </div>
+))}
     </div>
   )
 }

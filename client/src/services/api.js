@@ -12,3 +12,9 @@ export const getCommits = (owner, repo) =>
 
 export const getIssues = (owner, repo) =>
 API.get(`api/repo/${owner}/${repo}/issues`)
+
+export const getContributors = (owner, repo) =>
+  API.get(`/api/repo/${owner}/${repo}/contributors`)
+
+export const getHealth = (owner, repo) =>
+  API.get(`/api/repo/${owner}/${repo}/health`)
