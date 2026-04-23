@@ -1,6 +1,8 @@
 const express = require('express')
 const cors = require('cors')
 const dotenv = require('dotenv')
+const db = require('./db')
+const cache = require('./cache')
 
 dotenv.config()
 

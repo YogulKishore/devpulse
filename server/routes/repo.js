@@ -1,6 +1,8 @@
 const express = require('express')
 const axios = require('axios')
 const router = express.Router()
+const pool = require('../db')
+const cache = require('../cache')
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN
 
@@ -12,21 +14,53 @@ const githubAPI = axios.create({
     },
 })
 
+// HISTORY ROUTE — must be before /:owner/:repo
+router.get('/history', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT owner, repo, searched_at FROM search_history ORDER BY searched_at DESC LIMIT 10'
+    )
+    res.json({ history: result.rows })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch history' })
+  }
+})
+
 router.get('/:owner/:repo', async(req, res) =>{
     const{owner, repo} = req.params
+    const cacheKey = `repo:${owner}:${repo}`
 
     try{
+        // check cache first
+        const cached = await cache.get(cacheKey)
+        if (cached) {
+            console.log(`Cache hit: ${cacheKey}`)
+            return res.json(JSON.parse(cached))
+        }
+
         const{data} = await githubAPI.get(`/repos/${owner}/${repo}`)
-        res.json({
-        name: data.name,
-        description: data.description,
-        stars: data.stargazers_count,
-        forks: data.forks_count,
-        openIssues: data.open_issues_count,
-        language: data.language,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
-        })
+        
+        const result = {
+            name: data.name,
+            description: data.description,
+            stars: data.stargazers_count,
+            forks: data.forks_count,
+            openIssues: data.open_issues_count,
+            language: data.language,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at,
+        }
+
+        // store in cache for 1 hour
+        await cache.setEx(cacheKey, 3600, JSON.stringify(result))
+
+        // save to search history
+        pool.query(
+          'INSERT INTO search_history (owner, repo) VALUES ($1, $2)',
+          [owner, repo]
+        ).catch(err => console.error('History save failed:', err.message))
+
+        res.json(result)
     } catch(err){
         res.status(404).json({error:'Repo not found'})
     }
@@ -48,7 +82,7 @@ router.get('/:owner/:repo/commits', async(req, res) =>{
 
         res.json({total:commits.length, commits})
     }catch(err){
-        res.status(500).json({error:'Failedd to fetch commits'})
+        res.status(500).json({error:'Failed to fetch commits'})
     }
 })
 
@@ -109,30 +143,20 @@ router.get('/:owner/:repo/health', async (req, res) => {
     const commits = commitsRes.data
     const issues = issuesRes.data
 
-    // days since last commit
     const lastCommit = new Date(commits[0].commit.author.date)
     const daysSinceCommit = Math.floor((new Date() - lastCommit) / (1000 * 60 * 60 * 24))
 
-    // issue resolution rate
     const closedIssues = issues.filter(i => i.state === 'closed').length
     const resolutionRate = issues.length > 0 ? (closedIssues / issues.length) * 100 : 0
 
-    // score calculation
     let score = 100
-
-    // penalise for inactivity
     if (daysSinceCommit > 30) score -= 20
     if (daysSinceCommit > 90) score -= 20
     if (daysSinceCommit > 180) score -= 20
-
-    // reward issue resolution
     if (resolutionRate > 70) score += 10
     if (resolutionRate < 30) score -= 15
-
-    // reward stars
     if (repoData.stargazers_count > 1000) score += 10
     if (repoData.stargazers_count > 10000) score += 10
-
     score = Math.min(100, Math.max(0, score))
 
     res.json({
@@ -147,39 +171,34 @@ router.get('/:owner/:repo/health', async (req, res) => {
   }
 })
 
-router.post('/:owner/:repo/summarise', async (req, res) => {
-    try {
-        console.log('Received body:', req.body)
-        const response = await axios.post('http://localhost:8000/summarise', req.body)
-        res.json(response.data)
-    } catch (err) {
-        res.status(500).json({error: 'AI service unavailable'})
-    }
-})
-
 router.get('/:owner/:repo/pulls', async (req, res) => {
-    const {owner, repo} = req.params
+  const { owner, repo } = req.params
 
-    try {
-        const [openRes, closedRes] = await Promise.all ([
-            githubAPI.get(`/repos/${owner}/${repo}/pulls`, {params: {state:'open', per_page:100}}),
-            githubAPI.get(`/repos/${owner}/${repo}/pulls`, {params: {state: 'closed', per_page:100}}),
-        ])
+  try {
+    const [openRes, closedRes] = await Promise.all([
+      githubAPI.get(`/repos/${owner}/${repo}/pulls`, { params: { state: 'open', per_page: 100 } }),
+      githubAPI.get(`/repos/${owner}/${repo}/pulls`, { params: { state: 'closed', per_page: 100 } }),
+    ])
 
     const open = openRes.data.length
     const closed = closedRes.data.length
     const total = open + closed
     const mergeRate = total > 0 ? Math.round((closed / total) * 100) : 0
 
-    res.json({
-        open,
-        closed,
-        total,
-        mergeRate,
-    })
-}catch(err){
-    res.status(500).json({error:'Falied to fetch pull requests'})
-}
+    res.json({ open, closed, total, mergeRate })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch pull requests' })
+  }
+})
+
+router.post('/:owner/:repo/summarise', async (req, res) => {
+    try {
+        const response = await axios.post('http://localhost:8000/summarise', req.body)
+        res.json(response.data)
+    } catch (err) {
+        console.log('Error details:', err.response?.data || err.message)
+        res.status(500).json({error: 'AI service unavailable'})
+    }
 })
 
 module.exports = router

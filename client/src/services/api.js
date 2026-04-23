@@ -21,3 +21,6 @@ export const getHealth = (owner, repo) =>
 
 export const getPulls = (owner, repo) =>
   API.get(`/api/repo/${owner}/${repo}/pulls`)
+
+export const getHistory = () =>
+  API.get('/api/repo/history')
