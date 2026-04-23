@@ -16,6 +16,7 @@ function RepoPage() {
   const [summaryLoading, setSummaryLoading] = useState(false)
   const navigate = useNavigate()
   const [pulls, setPulls] = useState(null)
+  const [compareInput, setCompareInput] = useState('')
 
   useEffect(() => {
     async function fetchData() {
@@ -67,6 +68,12 @@ function RepoPage() {
     return Object.entries(counts)
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => new Date(a.date) - new Date(b.date))
+  }
+  
+  function handleCompare() {
+  if (!compareInput.includes('/')) return alert('Format: owner/repo')
+  const [owner2, repo2] = compareInput.split('/')
+  navigate(`/compare/${owner}/${repo}/${owner2}/${repo2}`)
   }
 
   function processIssues(issues) {
@@ -266,6 +273,26 @@ function RepoPage() {
             <p className='text-zinc-600 text-sm'>Click Generate to get an AI powered health summary of this repository.</p>
           )}
         </motion.div>
+
+        <div className='border border-white/10 rounded-xl p-6 mt-6'>
+          <h2 className='text-sm font-medium text-zinc-400 mb-4'>Compare with another repo</h2>
+          <div className='flex gap-2'>
+            <input
+              type='text'
+              placeholder='owner/repo'
+              value={compareInput}
+              onChange={e => setCompareInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCompare()}
+              className='flex-1 bg-transparent border border-white/10 rounded-lg px-4 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-white/30'
+            />
+            <button
+              onClick={handleCompare}
+              className='px-4 py-2 bg-white text-black text-xs font-medium rounded-lg hover:bg-zinc-200 transition-colors'
+            >
+              Compare
+            </button>
+          </div>
+        </div>
 
       </div>
     </div>
