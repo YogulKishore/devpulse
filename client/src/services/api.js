@@ -18,3 +18,6 @@ export const getContributors = (owner, repo) =>
 
 export const getHealth = (owner, repo) =>
   API.get(`/api/repo/${owner}/${repo}/health`)
+
+export const getPulls = (owner, repo) =>
+  API.get(`/api/repo/${owner}/${repo}/pulls`)

@@ -157,4 +157,29 @@ router.post('/:owner/:repo/summarise', async (req, res) => {
     }
 })
 
+router.get('/:owner/:repo/pulls', async (req, res) => {
+    const {owner, repo} = req.params
+
+    try {
+        const [openRes, closedRes] = await Promise.all ([
+            githubAPI.get(`/repos/${owner}/${repo}/pulls`, {params: {state:'open', per_page:100}}),
+            githubAPI.get(`/repos/${owner}/${repo}/pulls`, {params: {state: 'closed', per_page:100}}),
+        ])
+
+    const open = openRes.data.length
+    const closed = closedRes.data.length
+    const total = open + closed
+    const mergeRate = total > 0 ? Math.round((closed / total) * 100) : 0
+
+    res.json({
+        open,
+        closed,
+        total,
+        mergeRate,
+    })
+}catch(err){
+    res.status(500).json({error:'Falied to fetch pull requests'})
+}
+})
+
 module.exports = router
